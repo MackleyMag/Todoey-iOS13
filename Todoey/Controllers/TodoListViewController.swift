@@ -9,23 +9,21 @@
 import UIKit
 import RealmSwift
 
-class TodoListViewController: UITableViewController {
+class TodoListViewController: SwipeTableViewController {
     
     var todoItems: Results<Item>?
     let realm = try! Realm()
+    
     var selectedCategory : Category?{
         didSet{
             loadItems()
         }
     }
-    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
 
     override func viewDidLoad() {
         super.viewDidLoad()
         
         print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
-        
-        // Do any additional setup after loading the view.
     }
     
     //MARK: - TableView DataSource Methods
@@ -35,7 +33,7 @@ class TodoListViewController: UITableViewController {
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "ToDoItemCell", for: indexPath)
+        let cell = super.tableView(tableView, cellForRowAt: indexPath)
         
         if let item = todoItems?[indexPath.row] {
             cell.textLabel?.text = item.title
@@ -52,8 +50,6 @@ class TodoListViewController: UITableViewController {
     //MARK: - TableView Delegate
     
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        
-        
         //codigo de update
         if let item = todoItems?[indexPath.row]{
             do{
@@ -64,23 +60,27 @@ class TodoListViewController: UITableViewController {
                 print("Error savind done status, \(error)")
             }
         }
-        
         tableView.reloadData()
-        
-//        sempre chamar a chamada de delecao do banco primeiro
-//        context.delete(itemArray[indexPath.row])
-//        para depois remover do array
-//        itemArray.remove(at: indexPath.row)
-        
-//        todoItems[indexPath.row].done = !todoItems[indexPath.row].done
-//
-////        sempre chame a função de salvamento
-//        saveItems()
-        
         tableView.deselectRow(at: indexPath, animated: true)
-        
-        
     }
+    
+    //better func for deletion. Better than the solution from class 265
+//    override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath ){
+//        if let item = todoItems?[indexPath.row]{
+//            if editingStyle == .delete{
+//                do{
+//                    try realm.write({
+//                        realm.delete(item)
+//                    })
+//                    tableView.deleteRows(at: [indexPath], with: .fade)
+//                }catch{
+//                    print("Error while trying to delete: \(error)")
+//                }
+//            }
+//        }
+//        //tableView.reloadData()
+//    }
+    
     //MARK: - Add New Items
 
     @IBAction func addButtunPressed(_ sender: UIBarButtonItem) {
@@ -97,6 +97,7 @@ class TodoListViewController: UITableViewController {
                     try self.realm.write {
                         let newItem = Item()
                         newItem.title = textField.text!
+                        newItem.dateCreated = Date()
                         currentCategory.items.append(newItem)
                     }
                 }catch{
@@ -123,26 +124,37 @@ class TodoListViewController: UITableViewController {
         
         tableView.reloadData()
     }
+    
+    //deletion method
+    
+    override func updateModel(at indexPath: IndexPath) {
+        if let item = self.todoItems?[indexPath.row]{
+            do{
+                try realm.write({
+                    realm.delete(item)
+                })
+            }catch{
+                print("Error while trying to delete: \(error)")
+            }
+        }
+    }
 }
 //MARK: - Search Bar Methods
-//extension TodoListViewController: UISearchBarDelegate{
-//    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
-//        let request : NSFetchRequest<Item> = Item.fetchRequest()
-//        
-//        request.predicate  = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
-//        
-//        request.sortDescriptors  = [NSSortDescriptor(key: "title", ascending: true)]
-//        
-//        loadItems(with: request)
-//    }
-//    
-//    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
-//        if searchBar.text?.count == 0{
-//            loadItems()
-//            
-//            DispatchQueue.main.async {
-//                searchBar.resignFirstResponder()
-//            }
-//        }
-//    }
-//}
+extension TodoListViewController: UISearchBarDelegate{
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        
+        todoItems = todoItems?.filter("title CONTAINS[cd] %@", searchBar.text!).sorted(byKeyPath: "title", ascending: true)
+        
+        tableView.reloadData()
+    }
+    
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        if searchBar.text?.count == 0{
+            loadItems()
+            
+            DispatchQueue.main.async {
+                searchBar.resignFirstResponder()
+            }
+        }
+    }
+}
